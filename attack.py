@@ -49,4 +49,5 @@ if __name__ == "__main__":
         Z, opt_state, loss_val = trainer(Z, opt_state)
         pbar.set_postfix_str(f'LOSS: {loss_val:.5f}')
     plt.imshow(Z[0])
+    plt.title(f"Prediction confidence: {model.apply(params, Z)[0, args.target]:.3%}")
     plt.show()

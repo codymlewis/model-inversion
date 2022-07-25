@@ -14,15 +14,32 @@ import models
 
 def celoss(model):
     @jax.jit
-    def _apply(params, X, y):
+    def _apply(params, X, Y):
         logits = jnp.clip(model.apply(params, X), 1e-15, 1 - 1e-15)
-        one_hot = jax.nn.one_hot(y, logits.shape[-1])
+        one_hot = jax.nn.one_hot(Y, logits.shape[-1])
         return -jnp.mean(jnp.einsum("bl,bl -> b", one_hot, jnp.log(logits)))
     return _apply
 
 
-def accuracy(model, params, X, y):
-    return jnp.mean(jnp.argmax(model.apply(params, X), axis=-1) == y)
+def robust_loss(model, loss, alpha=0.5, epsilon=0.001):
+    @jax.jit
+    def _apply(params, X, Y):
+        normal = alpha * loss(params, X, Y)
+        robust = (1 - alpha) * loss(params, X + epsilon * jnp.sign(jax.grad(loss, argnums=(1,))(params, X, Y)[0]), Y)
+        return normal + robust
+    return _apply
+
+
+def accuracy(model, params, X, Y, batch_size=1000):
+    metric = datasets.load_metric('accuracy')
+    ds_size = len(Y)
+    for i in range(0, ds_size, batch_size):
+        end = min(i + batch_size, ds_size)
+        metric.add_batch(
+            predictions=jnp.argmax(model.apply(params, X[i:end]), axis=-1),
+            references=Y[i:end]
+        )
+    return metric.compute()['accuracy']
 
 
 def train_step(opt, loss):
@@ -64,7 +81,7 @@ if __name__ == "__main__":
     params = model.init(jax.random.PRNGKey(42), X[:32])
     opt = optax.adam(1e-3)
     opt_state = opt.init(params)
-    trainer = train_step(opt, celoss(model))
+    trainer = train_step(opt, robust_loss(model, celoss(model)))
     rng = np.random.default_rng()
     train_len = len(Y)
     for _ in (pbar := trange(args.steps)):
