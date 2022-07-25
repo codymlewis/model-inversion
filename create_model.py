@@ -1,3 +1,5 @@
+import argparse
+
 import datasets
 import einops
 import numpy as np
@@ -51,20 +53,25 @@ def load_dataset():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train and save a model to be attacked.")
+    parser.add_argument('--model', type=str, default="LeNet", help="Model to train.")
+    parser.add_argument('--steps', type=int, default=3000, help="Steps of training to perform.")
+    args = parser.parse_args()
+
     ds = load_dataset()
     X, Y = ds['train']['X'], ds['train']['Y']
-    model = models.LeNet(act=jax.nn.relu)
+    model = getattr(models, args.model)()
     params = model.init(jax.random.PRNGKey(42), X[:32])
     opt = optax.adam(1e-3)
     opt_state = opt.init(params)
     trainer = train_step(opt, celoss(model))
     rng = np.random.default_rng()
     train_len = len(Y)
-    for _ in (pbar := trange(3000)):
+    for _ in (pbar := trange(args.steps)):
         idx = rng.choice(train_len, 32, replace=False)
         params, opt_state, loss_val = trainer(params, opt_state, X[idx], Y[idx])
         pbar.set_postfix_str(f"LOSS: {loss_val:.5f}")
     print(f"Final accuracy: {accuracy(model, params, ds['test']['X'], ds['test']['Y']):.3%}")
-    with open('lenet.params', 'wb') as f:
+    with open(f'{args.model}.params', 'wb') as f:
         f.write(serialization.to_bytes(params))
-    print('Saved final model.')
+    print(f'Saved final model to {args.model}.params')

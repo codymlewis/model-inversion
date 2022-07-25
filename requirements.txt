@@ -1,0 +1,5 @@
+datasets
+einops
+optax
+flax
+tqdm
