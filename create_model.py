@@ -31,7 +31,7 @@ def robust_loss(loss, alpha=0.5, epsilon=0.25):
     @jax.jit
     def _apply(params, X, Y):
         normal = alpha * loss(params, X, Y)
-        robust = (1 - alpha) * loss(params, X + epsilon * jnp.sign(jax.grad(loss, argnums=(1,))(params, X, Y)[0]), Y)
+        robust = (1 - alpha) * loss(params, X + epsilon * jnp.sign(jax.grad(loss, argnums=1)(params, X, Y)), Y)
         return normal + robust
     return _apply
 
