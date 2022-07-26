@@ -1,5 +1,21 @@
+"""
+Some flax defined machine learning models.
+"""
+
+
 import einops
 import flax.linen as nn
+
+
+class Softmax(nn.Module):
+    @nn.compact
+    def __call__(self, x):
+        return nn.Sequential(
+            [
+                lambda x: einops.rearrange(x, "b w h c -> b (w h c)"),
+                nn.Dense(10), nn.softmax
+            ]
+        )(x)
 
 
 class LeNet(nn.Module):
