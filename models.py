@@ -8,17 +8,21 @@ import flax.linen as nn
 
 
 class Softmax(nn.Module):
+    classes: int
+
     @nn.compact
     def __call__(self, x):
         return nn.Sequential(
             [
                 lambda x: einops.rearrange(x, "b w h c -> b (w h c)"),
-                nn.Dense(10), nn.softmax
+                nn.Dense(self.classes), nn.softmax
             ]
         )(x)
 
 
 class LeNet(nn.Module):
+    classes: int
+
     @nn.compact
     def __call__(self, x):
         return nn.Sequential(
@@ -26,12 +30,14 @@ class LeNet(nn.Module):
                 lambda x: einops.rearrange(x, "b w h c -> b (w h c)"),
                 nn.Dense(300), nn.relu,
                 nn.Dense(100), nn.relu,
-                nn.Dense(10), nn.softmax
+                nn.Dense(self.classes), nn.softmax
             ]
         )(x)
 
 
 class CNN(nn.Module):
+    classes: int
+
     @nn.compact
     def __call__(self, x):
         return nn.Sequential(
@@ -42,6 +48,6 @@ class CNN(nn.Module):
                 lambda x: nn.max_pool(x, (2, 2)),
                 lambda x: einops.rearrange(x, "b w h c -> b (w h c)"),
                 nn.Dense(100), nn.relu,
-                nn.Dense(10), nn.softmax,
+                nn.Dense(self.classes), nn.softmax,
             ]
         )(x)

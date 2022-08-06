@@ -1,4 +1,4 @@
-datasets
+sklearn
 einops
 optax
 flax

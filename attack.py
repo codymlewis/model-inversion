@@ -43,16 +43,16 @@ if __name__ == "__main__":
     parser.add_argument('--robust', action="store_true", help="Attack a robustly trained model.")
     args = parser.parse_args()
 
-    model = getattr(models, args.model)()
+    model = getattr(models, args.model)(40)
     rngkey = jax.random.PRNGKey(42)
     pkey, zkey = jax.random.split(rngkey)
-    params = model.init(pkey, jnp.zeros((32, 28, 28, 1)))
+    params = model.init(pkey, jnp.zeros((1, 64, 64, 1)))
     fn = f"{args.model}{'-robust' if args.robust else ''}.params"
     with open(fn, 'rb') as f:
         params = serialization.from_bytes(params, f.read())
     # OG paper says start with zeros, but this can lead to 0 gradients when the model uses relu
-    Z = jax.random.uniform(zkey, (1, 28, 28, 1))
-    opt = optax.sgd(0.1)
+    Z = jax.random.uniform(zkey, (1, 64, 64, 1))
+    opt = optax.adam(1e-3)
     opt_state = opt.init(Z)
     trainer = train_step(opt, attack_loss(model, params), args.target)
     for _ in (pbar := trange(args.steps)):

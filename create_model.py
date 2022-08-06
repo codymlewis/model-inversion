@@ -4,7 +4,8 @@ Train a model to be attacked.
 
 import argparse
 
-import datasets
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.datasets import fetch_olivetti_faces
 import einops
 import numpy as np
 import optax
@@ -58,20 +59,12 @@ def train_step(opt, loss):
 
 
 def load_dataset():
-    """Load and preprocess the MNIST dataset"""
-    ds = datasets.load_dataset('mnist')
-    ds = ds.map(
-        lambda e: {
-            'X': einops.rearrange(np.array(e['image'], dtype=np.float32) / 255, "h (w c) -> h w c", c=1),
-            'Y': e['label']
-        },
-        remove_columns=['image', 'label']
-    )
-    features = ds['train'].features
-    features['X'] = datasets.Array3D(shape=(28, 28, 1), dtype='float32')
-    ds['train'] = ds['train'].cast(features)
-    ds['test'] = ds['test'].cast(features)
-    ds.set_format('numpy')
+    lfw_people = fetch_olivetti_faces()
+    n_samples, h, w = lfw_people.images.shape
+    X = MinMaxScaler().fit_transform(lfw_people.data)
+    X = einops.rearrange(X, 'b (h w c) -> b h w c', h=h, w=w, c=1)
+    Y = lfw_people.target
+    ds = {'X': X, 'Y': Y}
     return ds
 
 
@@ -83,8 +76,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ds = load_dataset()
-    X, Y = ds['train']['X'], ds['train']['Y']
-    model = getattr(models, args.model)()
+    X, Y = ds['X'], ds['Y']
+    model = getattr(models, args.model)(len(np.unique(Y)))
     params = model.init(jax.random.PRNGKey(42), X[:32])
     opt = optax.adam(1e-3)
     opt_state = opt.init(params)
@@ -95,7 +88,7 @@ if __name__ == "__main__":
         idx = rng.choice(train_len, 32, replace=False)
         params, opt_state, loss_val = trainer(params, opt_state, X[idx], Y[idx])
         pbar.set_postfix_str(f"LOSS: {loss_val:.5f}")
-    print(f"Final accuracy: {accuracy(model, params, ds['test']['X'], ds['test']['Y']):.3%}")
+    print(f"Final accuracy: {accuracy(model, params, X, Y):.3%}")
     fn = f"{args.model}{'-robust' if args.robust else ''}.params"
     with open(fn, 'wb') as f:
         f.write(serialization.to_bytes(params))
